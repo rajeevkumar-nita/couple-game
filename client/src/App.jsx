@@ -239,7 +239,7 @@
 import { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 
-const socket = io.connect("http://localhost:3001");
+const socket = io.connect("https://couple-game-cj16.onrender.com");
 
 // --- AUDIO ASSETS ---
 const AUDIO_WIN = new Audio('https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3');
