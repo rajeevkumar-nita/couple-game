@@ -1,15 +1,23 @@
+
+
+
+
 // import { useState, useEffect } from 'react';
 // import io from 'socket.io-client';
 
-// // !!! DEPLOYMENT KE LIYE Render URL USE KARO !!!
+// // !!! CHANGE TO YOUR RENDER URL FOR DEPLOYMENT !!!
 // const socket = io.connect("https://couple-game-cj16.onrender.com");
-// // const socket = io.connect("http://localhost:3001"); // Local testing ke liye
+// // const socket = io.connect("http://localhost:3001"); // Use for local testing
 
-// // Sounds
+// // --- AUDIO ASSETS ---
 // const AUDIO_WIN = new Audio('https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3');
 // const AUDIO_LOSE = new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3');
 // const AUDIO_MOVE = new Audio('https://assets.mixkit.co/active_storage/sfx/2578/2578-preview.mp3'); 
-// const AUDIO_CURSE = new Audio('https://assets.mixkit.co/active_storage/sfx/243/243-preview.mp3'); 
+// // Scary Glitch Sound (Mirror)
+// const AUDIO_MIRROR = new Audio('https://assets.mixkit.co/active_storage/sfx/243/243-preview.mp3'); 
+// // Fast Whoosh Sound (Speed)
+// const AUDIO_SPEED = new Audio('https://assets.mixkit.co/active_storage/sfx/1659/1659-preview.mp3');
+
 // AUDIO_MOVE.volume = 0.2;
 
 // function App() {
@@ -23,8 +31,8 @@
 //   const [gameOverMsg, setGameOverMsg] = useState("");
 //   const [timeLeft, setTimeLeft] = useState(0);
 //   const [currentLevel, setCurrentLevel] = useState(1);
-//   const [activeCurse, setActiveCurse] = useState(null); 
-//   const [hasKey, setHasKey] = useState(false); // Key State
+//   const [activeCurse, setActiveCurse] = useState(null); // 'MIRROR' or 'SPEED'
+//   const [hasKey, setHasKey] = useState(false);
 
 //   const joinRoom = () => { if (room !== "") socket.emit("join_room", room); };
 //   const handleRestart = () => socket.emit("restart_game", room);
@@ -33,13 +41,17 @@
 //   // --- CONTROLS LOGIC ---
 //   const movePlayer = (dir) => {
 //     if (role !== 'walker' || !gameStarted || winner || gameOverMsg) return;
+    
 //     let finalDir = dir;
-//     if (activeCurse === 'MIRROR') { // REVERSE CONTROLS
+//     // IF MIRROR CURSE -> SWAP CONTROLS
+//     if (activeCurse === 'MIRROR') {
 //       if (dir === 'UP') finalDir = 'DOWN';
 //       if (dir === 'DOWN') finalDir = 'UP';
 //       if (dir === 'LEFT') finalDir = 'RIGHT';
 //       if (dir === 'RIGHT') finalDir = 'LEFT';
 //     }
+//     // IF SPEED CURSE -> Controls are normal, but server moves us 2x
+
 //     AUDIO_MOVE.currentTime = 0;
 //     AUDIO_MOVE.play().catch(e => {}); 
 //     socket.emit('move_player', { roomCode: room, direction: finalDir });
@@ -67,10 +79,15 @@
 
 //     socket.on("update_position", (pos) => setPlayerPos(pos));
 //     socket.on("timer_update", (time) => setTimeLeft(time));
-//     socket.on("map_updated", (newMap) => setMap(newMap)); // Key removed visually
-//     socket.on("key_collected", () => setHasKey(true)); // Show Key Icon
+//     socket.on("map_updated", (newMap) => setMap(newMap)); 
+//     socket.on("key_collected", () => setHasKey(true)); 
 
-//     socket.on("curse_triggered", (data) => { setActiveCurse(data.type); AUDIO_CURSE.play(); });
+//     // CHAOS TRIGGERS
+//     socket.on("curse_triggered", (data) => { 
+//       setActiveCurse(data.type); 
+//       if (data.type === 'MIRROR') AUDIO_MIRROR.play();
+//       if (data.type === 'SPEED') AUDIO_SPEED.play();
+//     });
 //     socket.on("curse_ended", () => setActiveCurse(null));
 
 //     socket.on("game_won", () => { setWinner(true); AUDIO_WIN.play(); });
@@ -98,12 +115,21 @@
 //     );
 //   }
 
+//   // --- DYNAMIC BACKGROUND & STYLES ---
+//   // Default: Gray | Mirror: Red | Speed: Blue
+//   const bgClass = activeCurse === 'MIRROR' ? 'bg-red-900' : activeCurse === 'SPEED' ? 'bg-blue-900' : 'bg-gray-900';
+//   const bannerColor = activeCurse === 'MIRROR' ? 'bg-red-600' : 'bg-blue-600';
+//   const borderClass = activeCurse === 'MIRROR' ? 'border-red-500 shadow-red-500/50' : activeCurse === 'SPEED' ? 'border-blue-500 shadow-blue-500/50' : 'border-gray-700';
+
 //   return (
-//     <div className={`flex flex-col items-center justify-center min-h-screen text-white select-none relative overflow-hidden pb-10 transition-colors duration-500 ${activeCurse ? 'bg-red-900' : 'bg-gray-900'}`}>
+//     <div className={`flex flex-col items-center justify-center min-h-screen text-white select-none relative overflow-hidden pb-10 transition-colors duration-500 ${bgClass}`}>
       
-//       {activeCurse === 'MIRROR' && (
+//       {/* CHAOS WARNING BANNER */}
+//       {activeCurse && (
 //         <div className="absolute top-20 z-50 animate-bounce">
-//            <div className="bg-red-600 text-white px-6 py-3 rounded-full font-bold shadow-lg border-4 border-white text-xl md:text-2xl">⚠️ CURSE: CONTROLS REVERSED! ⚠️</div>
+//            <div className={`text-white px-6 py-3 rounded-full font-bold shadow-lg border-4 border-white text-xl md:text-2xl ${bannerColor}`}>
+//              {activeCurse === 'MIRROR' ? '⚠️ CURSE: CONTROLS REVERSED! ⚠️' : '⚡ CURSE: SPEED DEMON (2x)! ⚡'}
+//            </div>
 //         </div>
 //       )}
 
@@ -127,7 +153,7 @@
 //         <div className="animate-pulse text-yellow-400 font-mono text-xl mt-10">Waiting for partner...</div>
 //       ) : (
 //         <>
-//           <div className={`grid gap-1 bg-gray-800 p-2 rounded-lg border-4 shadow-2xl touch-none ${activeCurse ? 'border-red-500 shadow-red-500/50' : 'border-gray-700'}`} style={{ gridTemplateColumns: `repeat(${map[0]?.length || 10}, minmax(30px, 40px))` }}>
+//           <div className={`grid gap-1 bg-gray-800 p-2 rounded-lg border-4 shadow-2xl touch-none ${borderClass}`} style={{ gridTemplateColumns: `repeat(${map[0]?.length || 10}, minmax(30px, 40px))` }}>
 //             {map.map((row, rowIndex) => (
 //               row.map((cell, colIndex) => {
 //                 const isPlayerHere = playerPos.x === colIndex && playerPos.y === rowIndex;
@@ -157,19 +183,21 @@
 //             ))}
 //           </div>
 
+//           {/* MOBILE CONTROLS */}
 //           {role === 'walker' && !winner && !gameOverMsg && (
 //             <div className="mt-6 grid grid-cols-3 gap-2 w-48">
 //               <div></div>
-//               <button className={`p-4 rounded-lg active:bg-blue-600 shadow-lg text-2xl ${activeCurse ? 'bg-red-600' : 'bg-gray-700'}`} onClick={() => movePlayer('UP')}>⬆️</button>
+//               <button className={`p-4 rounded-lg active:bg-blue-600 shadow-lg text-2xl ${activeCurse === 'MIRROR' ? 'bg-red-600' : activeCurse === 'SPEED' ? 'bg-blue-600' : 'bg-gray-700'}`} onClick={() => movePlayer('UP')}>⬆️</button>
 //               <div></div>
-//               <button className={`p-4 rounded-lg active:bg-blue-600 shadow-lg text-2xl ${activeCurse ? 'bg-red-600' : 'bg-gray-700'}`} onClick={() => movePlayer('LEFT')}>⬅️</button>
-//               <button className={`p-4 rounded-lg active:bg-blue-600 shadow-lg text-2xl ${activeCurse ? 'bg-red-600' : 'bg-gray-700'}`} onClick={() => movePlayer('DOWN')}>⬇️</button>
-//               <button className={`p-4 rounded-lg active:bg-blue-600 shadow-lg text-2xl ${activeCurse ? 'bg-red-600' : 'bg-gray-700'}`} onClick={() => movePlayer('RIGHT')}>➡️</button>
+//               <button className={`p-4 rounded-lg active:bg-blue-600 shadow-lg text-2xl ${activeCurse === 'MIRROR' ? 'bg-red-600' : activeCurse === 'SPEED' ? 'bg-blue-600' : 'bg-gray-700'}`} onClick={() => movePlayer('LEFT')}>⬅️</button>
+//               <button className={`p-4 rounded-lg active:bg-blue-600 shadow-lg text-2xl ${activeCurse === 'MIRROR' ? 'bg-red-600' : activeCurse === 'SPEED' ? 'bg-blue-600' : 'bg-gray-700'}`} onClick={() => movePlayer('DOWN')}>⬇️</button>
+//               <button className={`p-4 rounded-lg active:bg-blue-600 shadow-lg text-2xl ${activeCurse === 'MIRROR' ? 'bg-red-600' : activeCurse === 'SPEED' ? 'bg-blue-600' : 'bg-gray-700'}`} onClick={() => movePlayer('RIGHT')}>➡️</button>
 //             </div>
 //           )}
 //         </>
 //       )}
 
+//       {/* MODAL */}
 //       {(winner || gameOverMsg) && (
 //         <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50 backdrop-blur-sm px-4">
 //           <div className="bg-gray-800 p-6 rounded-2xl border-2 border-pink-500 text-center shadow-2xl animate-bounce-in w-full max-w-sm">
@@ -200,25 +228,159 @@
 
 
 
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
+// import Peer from 'simple-peer'; <--- REMOVED STATIC IMPORT
+
+// --- CRITICAL POLYFILLS FOR SIMPLE-PEER ---
+// These MUST run before simple-peer is loaded
+if (typeof window !== 'undefined') {
+    window.global = window;
+    window.process = { env: {} };
+    window.Buffer = window.Buffer || [];
+}
 
 // !!! CHANGE TO YOUR RENDER URL FOR DEPLOYMENT !!!
-const socket = io.connect("https://couple-game-cj16.onrender.com");
-// const socket = io.connect("http://localhost:3001"); // Use for local testing
+const socket = io.connect("http://localhost:3001");
+// const socket = io.connect("http://localhost:3001"); 
 
 // --- AUDIO ASSETS ---
 const AUDIO_WIN = new Audio('https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3');
 const AUDIO_LOSE = new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3');
 const AUDIO_MOVE = new Audio('https://assets.mixkit.co/active_storage/sfx/2578/2578-preview.mp3'); 
-// Scary Glitch Sound (Mirror)
 const AUDIO_MIRROR = new Audio('https://assets.mixkit.co/active_storage/sfx/243/243-preview.mp3'); 
-// Fast Whoosh Sound (Speed)
 const AUDIO_SPEED = new Audio('https://assets.mixkit.co/active_storage/sfx/1659/1659-preview.mp3');
 
 AUDIO_MOVE.volume = 0.2;
 
+// --- VOICE CHAT COMPONENT ---
+const VoiceChat = ({ socket, roomCode, myRole }) => {
+    const [stream, setStream] = useState(null);
+    const [callAccepted, setCallAccepted] = useState(false);
+    const [peerLib, setPeerLib] = useState(null); // Store the dynamically loaded library
+    const userAudio = useRef(); 
+    const connectionRef = useRef();
+
+    useEffect(() => {
+        // 1. Dynamic Import of simple-peer to bypass "global is not defined" error
+        const loadPeerLibrary = async () => {
+            try {
+                const module = await import('simple-peer');
+                const Peer = module.default;
+                setPeerLib(() => Peer); // Save the class to state
+                startVoiceChat(Peer);
+            } catch (error) {
+                console.error("Failed to load Simple-Peer:", error);
+            }
+        };
+
+        loadPeerLibrary();
+
+        // Cleanup
+        return () => {
+            if(stream) stream.getTracks().forEach(track => track.stop());
+            if(connectionRef.current) connectionRef.current.destroy();
+            socket.off("all_users_connected");
+            socket.off("user_joined_call");
+            socket.off("receiving_returned_signal");
+        };
+        // eslint-disable-next-line
+    }, []);
+
+    const startVoiceChat = (Peer) => {
+        // 2. Get Microphone Permission
+        navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+            .then((currentStream) => {
+                setStream(currentStream);
+                console.log("Microphone access granted.");
+
+                // LISTENERS FOR SIGNALING
+                socket.on("all_users_connected", (userToSignalID) => {
+                    console.log("Both users here. Initiating call to:", userToSignalID);
+                    createPeer(Peer, userToSignalID, socket.id, currentStream);
+                });
+
+                socket.on("user_joined_call", (payload) => {
+                    console.log("Incoming call signal received.");
+                    addPeer(Peer, payload.signal, payload.callerID, currentStream);
+                });
+
+                socket.on("receiving_returned_signal", (payload) => {
+                    console.log("Call accepted by partner.");
+                    setCallAccepted(true);
+                    const item = connectionRef.current;
+                    if(item) {
+                        item.signal(payload.signal);
+                    }
+                });
+            })
+            .catch(err => {
+                console.error("Error accessing microphone:", err);
+            });
+    };
+
+    function createPeer(Peer, userToSignal, callerID, stream) {
+        const peer = new Peer({
+            initiator: true,
+            trickle: false,
+            stream: stream,
+        });
+
+        peer.on("signal", (signal) => {
+            socket.emit("sending_signal", { userToSignal, callerID, signal });
+        });
+
+        peer.on("stream", (remoteStream) => {
+            if (userAudio.current) {
+                userAudio.current.srcObject = remoteStream;
+            }
+        });
+
+        connectionRef.current = peer;
+    }
+
+    function addPeer(Peer, incomingSignal, callerID, stream) {
+        const peer = new Peer({
+            initiator: false,
+            trickle: false,
+            stream: stream,
+        });
+
+        peer.on("signal", (signal) => {
+            socket.emit("returning_signal", { signal, callerID });
+        });
+
+        peer.on("stream", (remoteStream) => {
+            if (userAudio.current) {
+                userAudio.current.srcObject = remoteStream;
+            }
+        });
+
+        peer.signal(incomingSignal);
+        connectionRef.current = peer;
+    }
+
+    return (
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2">
+            <audio playsInline autoPlay ref={userAudio} />
+            <div className={`px-4 py-2 rounded-full border-2 font-bold shadow-lg flex items-center gap-2 transition-all ${stream ? 'bg-gray-800 border-green-500 text-green-400' : 'bg-gray-800 border-red-500 text-red-500'}`}>
+                {stream ? (
+                    <>
+                        <span className="relative flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                        </span>
+                        <span>Voice Active</span>
+                    </>
+                ) : (
+                    <span>🔇 Mic Off / Loading</span>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// --- MAIN APP COMPONENT ---
 function App() {
   const [room, setRoom] = useState("");
   const [isJoined, setIsJoined] = useState(false);
@@ -230,7 +392,7 @@ function App() {
   const [gameOverMsg, setGameOverMsg] = useState("");
   const [timeLeft, setTimeLeft] = useState(0);
   const [currentLevel, setCurrentLevel] = useState(1);
-  const [activeCurse, setActiveCurse] = useState(null); // 'MIRROR' or 'SPEED'
+  const [activeCurse, setActiveCurse] = useState(null); 
   const [hasKey, setHasKey] = useState(false);
 
   const joinRoom = () => { if (room !== "") socket.emit("join_room", room); };
@@ -242,14 +404,12 @@ function App() {
     if (role !== 'walker' || !gameStarted || winner || gameOverMsg) return;
     
     let finalDir = dir;
-    // IF MIRROR CURSE -> SWAP CONTROLS
     if (activeCurse === 'MIRROR') {
       if (dir === 'UP') finalDir = 'DOWN';
       if (dir === 'DOWN') finalDir = 'UP';
       if (dir === 'LEFT') finalDir = 'RIGHT';
       if (dir === 'RIGHT') finalDir = 'LEFT';
     }
-    // IF SPEED CURSE -> Controls are normal, but server moves us 2x
 
     AUDIO_MOVE.currentTime = 0;
     AUDIO_MOVE.play().catch(e => {}); 
@@ -281,7 +441,6 @@ function App() {
     socket.on("map_updated", (newMap) => setMap(newMap)); 
     socket.on("key_collected", () => setHasKey(true)); 
 
-    // CHAOS TRIGGERS
     socket.on("curse_triggered", (data) => { 
       setActiveCurse(data.type); 
       if (data.type === 'MIRROR') AUDIO_MIRROR.play();
@@ -314,8 +473,6 @@ function App() {
     );
   }
 
-  // --- DYNAMIC BACKGROUND & STYLES ---
-  // Default: Gray | Mirror: Red | Speed: Blue
   const bgClass = activeCurse === 'MIRROR' ? 'bg-red-900' : activeCurse === 'SPEED' ? 'bg-blue-900' : 'bg-gray-900';
   const bannerColor = activeCurse === 'MIRROR' ? 'bg-red-600' : 'bg-blue-600';
   const borderClass = activeCurse === 'MIRROR' ? 'border-red-500 shadow-red-500/50' : activeCurse === 'SPEED' ? 'border-blue-500 shadow-blue-500/50' : 'border-gray-700';
@@ -323,7 +480,6 @@ function App() {
   return (
     <div className={`flex flex-col items-center justify-center min-h-screen text-white select-none relative overflow-hidden pb-10 transition-colors duration-500 ${bgClass}`}>
       
-      {/* CHAOS WARNING BANNER */}
       {activeCurse && (
         <div className="absolute top-20 z-50 animate-bounce">
            <div className={`text-white px-6 py-3 rounded-full font-bold shadow-lg border-4 border-white text-xl md:text-2xl ${bannerColor}`}>
@@ -352,6 +508,8 @@ function App() {
         <div className="animate-pulse text-yellow-400 font-mono text-xl mt-10">Waiting for partner...</div>
       ) : (
         <>
+          <VoiceChat socket={socket} roomCode={room} myRole={role} />
+
           <div className={`grid gap-1 bg-gray-800 p-2 rounded-lg border-4 shadow-2xl touch-none ${borderClass}`} style={{ gridTemplateColumns: `repeat(${map[0]?.length || 10}, minmax(30px, 40px))` }}>
             {map.map((row, rowIndex) => (
               row.map((cell, colIndex) => {
@@ -382,7 +540,6 @@ function App() {
             ))}
           </div>
 
-          {/* MOBILE CONTROLS */}
           {role === 'walker' && !winner && !gameOverMsg && (
             <div className="mt-6 grid grid-cols-3 gap-2 w-48">
               <div></div>
@@ -396,7 +553,6 @@ function App() {
         </>
       )}
 
-      {/* MODAL */}
       {(winner || gameOverMsg) && (
         <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50 backdrop-blur-sm px-4">
           <div className="bg-gray-800 p-6 rounded-2xl border-2 border-pink-500 text-center shadow-2xl animate-bounce-in w-full max-w-sm">
