@@ -205,7 +205,7 @@ import { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 
 // !!! CHANGE TO YOUR RENDER URL FOR DEPLOYMENT !!!
-const socket = io.connect("http://localhost:3001");
+const socket = io.connect("https://couple-game-cj16.onrender.com");
 // const socket = io.connect("http://localhost:3001"); // Use for local testing
 
 // --- AUDIO ASSETS ---
