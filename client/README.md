@@ -47,3 +47,44 @@ This project is a distributed system deployed across two cloud providers to opti
                                       |
                                 [Game State Store]
                                 (Rooms, Maps, Timers)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## 🚀 Key Features
+
+### 🔐 Strategic Gameplay (Key & Door)
+* Players cannot simply rush to the exit.
+* **The Logic:** The Goal is locked (🔒). The Walker must find the Key (🔑) hidden in the maze first to unlock the door (🔓).
+* This forces **Backtracking** and strategic planning between the pair.
+
+### 😈 The Chaos System (Mirror Curse)
+* To prevent gameplay from becoming static, I implemented a **Dynamic Event System**.
+* **Trigger:** Every few seconds, there is a probability of a "Curse" activating.
+* **Effect:** The screen turns RED, and **Controls are Inverted** (Up becomes Down, Left becomes Right) for 5 seconds.
+* **Tech:** Handled via server-side state broadcasting to ensure both players experience the chaos simultaneously.
+
+### 📈 Progressive Difficulty
+* The game gets harder as you win.
+* **Level 1:** 60s Time.
+* **Level 4:** 30s Time + High Trap Density.
+* State is persisted across levels without page reloads.
