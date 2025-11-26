@@ -3,7 +3,7 @@
 // const { Server } = require('socket.io');
 // const cors = require('cors');
 
-// // IMPORT THE MAP UTILS (Make sure you created this file in step 1)
+// // Import Utils (Make sure mapUtils.js exists in /utils folder)
 // const { getLevelConfig, generateSolvableMap, ROWS, COLS } = require('./utils/mapUtils');
 
 // const app = express();
@@ -17,31 +17,29 @@
 
 // const rooms = {};
 
-// // --- CHAOS LOGIC: TRIGGER CURSE ---
+// // --- CHAOS LOGIC ---
 // function triggerRandomCurse(roomCode) {
 //   const room = rooms[roomCode];
-//   if (!room) return;
+//   if (!room || room.isCursed) return;
 
-//   // If a curse is already active, don't overlap
-//   if (room.isCursed) return;
-
-//   const curseType = "MIRROR"; // Currently only one type, easy to add more later
-  
 //   room.isCursed = true;
   
-//   // 1. Notify Frontend
+//   // 50% Chance Mirror (Red), 50% Chance Speed (Blue)
+//   const curseType = Math.random() > 0.5 ? "MIRROR" : "SPEED";
+//   room.activeCurseType = curseType; // Save type to handle logic
+
 //   io.to(roomCode).emit('curse_triggered', { type: curseType, duration: 5 });
 
-//   // 2. Remove Curse after 5 seconds
 //   setTimeout(() => {
 //     if (rooms[roomCode]) {
 //       rooms[roomCode].isCursed = false;
+//       rooms[roomCode].activeCurseType = null;
 //       io.to(roomCode).emit('curse_ended');
 //     }
 //   }, 5000);
 // }
 
-// // --- TIMER LOGIC (With Curse Chance) ---
+// // --- TIMER LOGIC ---
 // function startRoomTimer(roomCode) {
 //   const room = rooms[roomCode];
 //   if (!room) return;
@@ -56,9 +54,7 @@
 //     room.timeLeft -= 1;
 //     io.to(roomCode).emit('timer_update', room.timeLeft);
 
-//     // --- CURSE CHANCE ---
-//     // Logic: If time ends in '0' or '5' (e.g. 45s, 40s, 35s), roll a dice.
-//     // 30% chance to trigger a curse.
+//     // Curse Chance (30% chance every 5s)
 //     if (room.timeLeft % 5 === 0 && room.timeLeft > 5 && room.timeLeft < config.time) {
 //       if (Math.random() < 0.3) {
 //         triggerRandomCurse(roomCode);
@@ -87,7 +83,9 @@
 //         position: { x: 1, y: 1 },
 //         timeLeft: config.time,
 //         timerInterval: null,
-//         isCursed: false
+//         isCursed: false,
+//         activeCurseType: null,
+//         hasKey: false
 //       };
 //     }
 //     const room = rooms[roomCode];
@@ -110,35 +108,68 @@
 //     }
 //   });
 
+//   // --- MOVEMENT LOGIC (Handles Double Steps) ---
 //   socket.on('move_player', ({ roomCode, direction }) => {
 //     const room = rooms[roomCode];
 //     if (!room || room.timeLeft <= 0) return;
 
-//     let { x, y } = room.position;
-//     if (direction === 'UP') y -= 1;
-//     if (direction === 'DOWN') y += 1;
-//     if (direction === 'LEFT') x -= 1;
-//     if (direction === 'RIGHT') x += 1;
+//     // Calculate Steps: 2 for Speed Curse, 1 for Normal
+//     const stepsToMove = (room.activeCurseType === 'SPEED') ? 2 : 1;
 
-//     // Boundary & Wall Check
-//     if (y >= 0 && y < ROWS && x >= 0 && x < COLS) {
-//       const currentMap = room.map;
-//       if (currentMap[y][x] !== 1) { 
-//         if (currentMap[y][x] === 3) {
-//           clearInterval(room.timerInterval);
-//           room.position = { x: 1, y: 1 }; 
-//           io.to(roomCode).emit('game_over', "💣 BOOM! Watch your step!");
-//           io.to(roomCode).emit('update_position', room.position);
-//         } else {
-//           room.position = { x, y };
-//           io.to(roomCode).emit('update_position', room.position);
-//           if (currentMap[y][x] === 9) {
-//             clearInterval(room.timerInterval);
-//             io.to(roomCode).emit('game_won', true); 
-//           }
+//     // LOOP: Execute movement step by step to check for walls/traps in between
+//     for (let i = 0; i < stepsToMove; i++) {
+//         let { x, y } = room.position;
+//         if (direction === 'UP') y -= 1;
+//         if (direction === 'DOWN') y += 1;
+//         if (direction === 'LEFT') x -= 1;
+//         if (direction === 'RIGHT') x += 1;
+
+//         // Boundary Check
+//         if (y >= 0 && y < ROWS && x >= 0 && x < COLS) {
+//             const currentMap = room.map;
+//             const cell = currentMap[y][x];
+
+//             if (cell === 1) break; // Hit Wall -> Stop
+            
+//             // Door Logic
+//             if (cell === 4) {
+//                 if (!room.hasKey) break; // Locked -> Stop
+//             }
+
+//             // Move is valid
+//             room.position = { x, y };
+
+//             // Key Logic
+//             if (cell === 5) {
+//                 room.hasKey = true;
+//                 currentMap[y][x] = 0;
+//                 io.to(roomCode).emit('key_collected');
+//                 io.to(roomCode).emit('map_updated', currentMap);
+//             }
+
+//             // Trap Logic (Game Over)
+//             if (cell === 3) {
+//                 clearInterval(room.timerInterval);
+//                 room.position = { x: 1, y: 1 };
+//                 room.hasKey = false;
+//                 // Custom message based on curse
+//                 const msg = room.activeCurseType === 'SPEED' ? "⚡ TOO FAST! You ran into a trap!" : "💣 BOOM! Trap hit!";
+//                 io.to(roomCode).emit('game_over', msg);
+//                 io.to(roomCode).emit('update_position', room.position);
+//                 return; // Stop function entirely
+//             }
+
+//             // Win Logic
+//             if (cell === 9) {
+//                 clearInterval(room.timerInterval);
+//                 io.to(roomCode).emit('game_won', true);
+//                 return; // Stop function entirely
+//             }
 //         }
-//       }
 //     }
+    
+//     // Send final position after all steps (1 or 2) are done
+//     io.to(roomCode).emit('update_position', room.position);
 //   });
 
 //   socket.on('restart_game', (roomCode) => {
@@ -147,7 +178,9 @@
 //       const config = getLevelConfig(room.level);
 //       room.map = generateSolvableMap(config);
 //       room.position = { x: 1, y: 1 };
-//       room.isCursed = false; // Reset curse
+//       room.isCursed = false;
+//       room.activeCurseType = null;
+//       room.hasKey = false;
 //       startRoomTimer(roomCode);
 //       io.to(roomCode).emit('start_game', { map: room.map, startPos: room.position, level: room.level });
 //       io.to(roomCode).emit('reset_game_state');
@@ -161,7 +194,9 @@
 //       const config = getLevelConfig(room.level);
 //       room.map = generateSolvableMap(config);
 //       room.position = { x: 1, y: 1 };
-//       room.isCursed = false; // Reset curse
+//       room.isCursed = false;
+//       room.activeCurseType = null;
+//       room.hasKey = false;
 //       startRoomTimer(roomCode);
 //       io.to(roomCode).emit('start_game', { map: room.map, startPos: room.position, level: room.level });
 //       io.to(roomCode).emit('reset_game_state');
@@ -180,12 +215,12 @@
 
 
 
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 
-// Import Utils
 const { getLevelConfig, generateSolvableMap, ROWS, COLS } = require('./utils/mapUtils');
 
 const app = express();
@@ -199,23 +234,32 @@ const io = new Server(server, {
 
 const rooms = {};
 
-// --- CURSE LOGIC ---
+// --- CHAOS LOGIC ---
 function triggerRandomCurse(roomCode) {
   const room = rooms[roomCode];
   if (!room || room.isCursed) return;
 
   room.isCursed = true;
-  io.to(roomCode).emit('curse_triggered', { type: "MIRROR", duration: 5 });
+  
+  // Pure 50/50 coin flip for Mirror vs Speed
+  const curseType = Math.random() < 0.5 ? "MIRROR" : "SPEED";
+  room.activeCurseType = curseType;
+
+  // Dynamic Duration: Level 1 = 5s, Level 10 = 8s
+  const duration = Math.min(8, 4 + Math.floor(room.level / 2));
+
+  io.to(roomCode).emit('curse_triggered', { type: curseType, duration: duration });
 
   setTimeout(() => {
     if (rooms[roomCode]) {
       rooms[roomCode].isCursed = false;
+      rooms[roomCode].activeCurseType = null;
       io.to(roomCode).emit('curse_ended');
     }
-  }, 5000);
+  }, duration * 1000);
 }
 
-// --- TIMER LOGIC ---
+// --- TIMER LOGIC (THE COMPLEX PART) ---
 function startRoomTimer(roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
@@ -230,9 +274,22 @@ function startRoomTimer(roomCode) {
     room.timeLeft -= 1;
     io.to(roomCode).emit('timer_update', room.timeLeft);
 
-    // Curse Chance (30% chance every 5s)
-    if (room.timeLeft % 5 === 0 && room.timeLeft > 5 && room.timeLeft < config.time) {
-      if (Math.random() < 0.3) {
+    // --- DYNAMIC CURSE CALCULATOR ---
+    
+    // 1. Calculate Check Interval (High levels check more often)
+    // Level 1-4: Check every 5s. Level 5+: Check every 3s.
+    const checkInterval = room.level >= 5 ? 3 : 5;
+
+    if (room.timeLeft % checkInterval === 0 && room.timeLeft > 3 && room.timeLeft < config.time) {
+      
+      // 2. Calculate Probability (Higher levels = Higher chance)
+      // Level 1 = 30%, Level 5 = 50%, Level 10 = 75%
+      let curseProbability = 0.25 + (room.level * 0.05);
+      if (curseProbability > 0.9) curseProbability = 0.9; // Cap at 90%
+
+      console.log(`Room ${roomCode}: Level ${room.level}, Chance: ${curseProbability.toFixed(2)}`); // Debug Log
+
+      if (Math.random() < curseProbability) {
         triggerRandomCurse(roomCode);
       }
     }
@@ -260,7 +317,8 @@ io.on('connection', (socket) => {
         timeLeft: config.time,
         timerInterval: null,
         isCursed: false,
-        hasKey: false // New State
+        activeCurseType: null,
+        hasKey: false
       };
     }
     const room = rooms[roomCode];
@@ -283,57 +341,54 @@ io.on('connection', (socket) => {
     }
   });
 
+  // --- MOVEMENT (SAME AS BEFORE) ---
   socket.on('move_player', ({ roomCode, direction }) => {
     const room = rooms[roomCode];
     if (!room || room.timeLeft <= 0) return;
 
-    let { x, y } = room.position;
-    if (direction === 'UP') y -= 1;
-    if (direction === 'DOWN') y += 1;
-    if (direction === 'LEFT') x -= 1;
-    if (direction === 'RIGHT') x += 1;
+    const stepsToMove = (room.activeCurseType === 'SPEED') ? 2 : 1;
 
-    // Check Bounds
-    if (y >= 0 && y < ROWS && x >= 0 && x < COLS) {
-      const currentMap = room.map;
-      const cell = currentMap[y][x];
+    for (let i = 0; i < stepsToMove; i++) {
+        let { x, y } = room.position;
+        if (direction === 'UP') y -= 1;
+        if (direction === 'DOWN') y += 1;
+        if (direction === 'LEFT') x -= 1;
+        if (direction === 'RIGHT') x += 1;
 
-      if (cell === 1) return; // Wall
+        if (y >= 0 && y < ROWS && x >= 0 && x < COLS) {
+            const currentMap = room.map;
+            const cell = currentMap[y][x];
 
-      // DOOR LOGIC (4)
-      if (cell === 4) {
-        if (!room.hasKey) return; // Locked
-        // If hasKey, pass through
-      }
+            if (cell === 1) break; 
+            if (cell === 4 && !room.hasKey) break;
 
-      room.position = { x, y };
+            room.position = { x, y };
 
-      // KEY LOGIC (5)
-      if (cell === 5) {
-        room.hasKey = true;
-        currentMap[y][x] = 0; // Remove key
-        io.to(roomCode).emit('key_collected');
-        io.to(roomCode).emit('map_updated', currentMap);
-      }
+            if (cell === 5) {
+                room.hasKey = true;
+                currentMap[y][x] = 0;
+                io.to(roomCode).emit('key_collected');
+                io.to(roomCode).emit('map_updated', currentMap);
+            }
 
-      // TRAP LOGIC (3)
-      if (cell === 3) {
-        clearInterval(room.timerInterval);
-        room.position = { x: 1, y: 1 };
-        room.hasKey = false; // Lost key
-        io.to(roomCode).emit('game_over', "💣 BOOM! Trap hit!");
-        io.to(roomCode).emit('update_position', room.position);
-        return;
-      }
+            if (cell === 3) {
+                clearInterval(room.timerInterval);
+                room.position = { x: 1, y: 1 };
+                room.hasKey = false;
+                const msg = room.activeCurseType === 'SPEED' ? "⚡ TOO FAST! You ran into a trap!" : "💣 BOOM! Trap hit!";
+                io.to(roomCode).emit('game_over', msg);
+                io.to(roomCode).emit('update_position', room.position);
+                return;
+            }
 
-      // WIN LOGIC (9)
-      if (cell === 9) {
-        clearInterval(room.timerInterval);
-        io.to(roomCode).emit('game_won', true);
-      }
-
-      io.to(roomCode).emit('update_position', room.position);
+            if (cell === 9) {
+                clearInterval(room.timerInterval);
+                io.to(roomCode).emit('game_won', true);
+                return;
+            }
+        }
     }
+    io.to(roomCode).emit('update_position', room.position);
   });
 
   socket.on('restart_game', (roomCode) => {
@@ -343,6 +398,7 @@ io.on('connection', (socket) => {
       room.map = generateSolvableMap(config);
       room.position = { x: 1, y: 1 };
       room.isCursed = false;
+      room.activeCurseType = null;
       room.hasKey = false;
       startRoomTimer(roomCode);
       io.to(roomCode).emit('start_game', { map: room.map, startPos: room.position, level: room.level });
@@ -358,6 +414,7 @@ io.on('connection', (socket) => {
       room.map = generateSolvableMap(config);
       room.position = { x: 1, y: 1 };
       room.isCursed = false;
+      room.activeCurseType = null;
       room.hasKey = false;
       startRoomTimer(roomCode);
       io.to(roomCode).emit('start_game', { map: room.map, startPos: room.position, level: room.level });
