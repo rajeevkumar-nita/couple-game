@@ -361,7 +361,7 @@ import io from 'socket.io-client';
 import VoiceChat from './components/VoiceChat.jsx';
 
 // !!! DEPLOYMENT KE LIYE RENDER URL USE KARO !!!
-const socket = io.connect("http://localhost:3001");
+const socket = io.connect("https://couple-game-cj16.onrender.com");
 // const socket = io.connect("http://localhost:3001"); 
 
 // --- AUDIO ASSETS ---
