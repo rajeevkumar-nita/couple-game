@@ -362,7 +362,7 @@ import VoiceChat from "./components/VoiceChat";
 
 // --- SOCKET.IO CONNECTION ---
 // ⚠️ Production: Render URL
-const socket = io.connect("https://couple-game-cj16.onrender.com");
+const socket = io.connect("http://localhost:3001");
 // Dev testing:
 // const socket = io.connect("http://localhost:3001");
 

@@ -110,12 +110,176 @@
 
 
 
-// client/src/components/VoiceChat.jsx
+// // client/src/components/VoiceChat.jsx
+// import { useState, useEffect, useRef } from "react";
+
+// // --- Polyfills for simple-peer / WebRTC in Vite ---
+// if (typeof window !== "undefined") {
+//   // simple-peer internally expects these
+//   window.global = window;
+//   window.process = { env: {} };
+//   window.Buffer = window.Buffer || [];
+// }
+
+// const VoiceChat = ({ socket, roomCode, myRole }) => {
+//   const [stream, setStream] = useState(null);
+//   const userAudio = useRef(null);       // remote audio will play here
+//   const connectionRef = useRef(null);   // holds current Peer instance
+//   const localStreamRef = useRef(null);  // to stop tracks on cleanup
+
+//   useEffect(() => {
+//     let isMounted = true;
+
+//     const initVoice = async () => {
+//       try {
+//         // 1) Dynamically load simple-peer (avoids "global is not defined")
+//         const module = await import("simple-peer");
+//         const Peer = module.default;
+
+//         // 2) Ask for mic permission
+//         const currentStream = await navigator.mediaDevices.getUserMedia({
+//           video: false,
+//           audio: true,
+//         });
+
+//         if (!isMounted) {
+//           // component unmount ho chuka ho to tracks ko turant stop kar do
+//           currentStream.getTracks().forEach((t) => t.stop());
+//           return;
+//         }
+
+//         localStreamRef.current = currentStream;
+//         setStream(currentStream);
+//         console.log("🎙️ Microphone access granted.");
+
+//         // 👉 SERVER KO BOL DO: "Main voice ke liye ready hoon"
+//         socket.emit("voice_ready", roomCode);
+
+//         // 3) Signaling listeners
+//         socket.on("all_users_connected", (userToSignalID) => {
+//           console.log("Both users voice-ready. Initiating call to:", userToSignalID);
+//           createPeer(Peer, userToSignalID, socket.id, currentStream);
+//         });
+
+//         socket.on("user_joined_call", (payload) => {
+//           console.log("Incoming call signal received.");
+//           addPeer(Peer, payload.signal, payload.callerID, currentStream);
+//         });
+
+//         socket.on("receiving_returned_signal", (payload) => {
+//           console.log("Call accepted by partner.");
+//           const peer = connectionRef.current;
+//           if (peer) {
+//             peer.signal(payload.signal);
+//           }
+//         });
+//       } catch (err) {
+//         console.error("VoiceChat init error:", err);
+//       }
+//     };
+
+//     initVoice();
+
+//     // Cleanup
+//     return () => {
+//       isMounted = false;
+
+//       socket.off("all_users_connected");
+//       socket.off("user_joined_call");
+//       socket.off("receiving_returned_signal");
+
+//       if (connectionRef.current) {
+//         connectionRef.current.destroy();
+//       }
+
+//       if (localStreamRef.current) {
+//         localStreamRef.current.getTracks().forEach((t) => t.stop());
+//       }
+//     };
+//     // roomCode/socket change se re-init hoga (normally stable hi rehte hain)
+//   }, [roomCode, socket]);
+
+//   const createPeer = (Peer, userToSignal, callerID, stream) => {
+//     const peer = new Peer({
+//       initiator: true,
+//       trickle: false,
+//       stream: stream,
+//     });
+
+//     peer.on("signal", (signal) => {
+//       socket.emit("sending_signal", { userToSignal, callerID, signal });
+//     });
+
+//     peer.on("stream", (remoteStream) => {
+//       if (userAudio.current) {
+//         userAudio.current.srcObject = remoteStream;
+//       }
+//     });
+
+//     connectionRef.current = peer;
+//   };
+
+//   const addPeer = (Peer, incomingSignal, callerID, stream) => {
+//     const peer = new Peer({
+//       initiator: false,
+//       trickle: false,
+//       stream: stream,
+//     });
+
+//     peer.on("signal", (signal) => {
+//       socket.emit("returning_signal", { signal, callerID });
+//     });
+
+//     peer.on("stream", (remoteStream) => {
+//       if (userAudio.current) {
+//         userAudio.current.srcObject = remoteStream;
+//       }
+//     });
+
+//     peer.signal(incomingSignal);
+//     connectionRef.current = peer;
+//   };
+
+//   return (
+//     <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2">
+//       {/* Remote audio plays here */}
+//       <audio playsInline autoPlay ref={userAudio} />
+
+//       <div
+//         className={`px-4 py-2 rounded-full border-2 font-bold shadow-lg flex items-center gap-2 transition-all ${
+//           stream
+//             ? "bg-gray-800 border-green-500 text-green-400"
+//             : "bg-gray-800 border-red-500 text-red-500"
+//         }`}
+//       >
+//         {stream ? (
+//           <>
+//             <span className="relative flex h-3 w-3">
+//               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+//               <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+//             </span>
+//             <span>Voice Active</span>
+//           </>
+//         ) : (
+//           <span>🔇 Mic Off / Loading</span>
+//         )}
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default VoiceChat;
+
+
+
+
+
+
+
+
 import { useState, useEffect, useRef } from "react";
 
-// --- Polyfills for simple-peer / WebRTC in Vite ---
 if (typeof window !== "undefined") {
-  // simple-peer internally expects these
   window.global = window;
   window.process = { env: {} };
   window.Buffer = window.Buffer || [];
@@ -123,87 +287,66 @@ if (typeof window !== "undefined") {
 
 const VoiceChat = ({ socket, roomCode, myRole }) => {
   const [stream, setStream] = useState(null);
-  const userAudio = useRef(null);       // remote audio will play here
-  const connectionRef = useRef(null);   // holds current Peer instance
-  const localStreamRef = useRef(null);  // to stop tracks on cleanup
+  const [isMuted, setIsMuted] = useState(false);  // <-- NEW
+  const userAudio = useRef(null);
+  const connectionRef = useRef(null);
+  const localStreamRef = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
 
     const initVoice = async () => {
       try {
-        // 1) Dynamically load simple-peer (avoids "global is not defined")
         const module = await import("simple-peer");
         const Peer = module.default;
 
-        // 2) Ask for mic permission
         const currentStream = await navigator.mediaDevices.getUserMedia({
           video: false,
           audio: true,
         });
 
-        if (!isMounted) {
-          // component unmount ho chuka ho to tracks ko turant stop kar do
-          currentStream.getTracks().forEach((t) => t.stop());
-          return;
-        }
+        if (!isMounted) return;
 
         localStreamRef.current = currentStream;
         setStream(currentStream);
-        console.log("🎙️ Microphone access granted.");
 
-        // 👉 SERVER KO BOL DO: "Main voice ke liye ready hoon"
         socket.emit("voice_ready", roomCode);
 
-        // 3) Signaling listeners
-        socket.on("all_users_connected", (userToSignalID) => {
-          console.log("Both users voice-ready. Initiating call to:", userToSignalID);
-          createPeer(Peer, userToSignalID, socket.id, currentStream);
+        // SIGNALING EVENTS
+        socket.on("all_users_connected", (targetID) => {
+          createPeer(Peer, targetID, socket.id, currentStream);
         });
 
         socket.on("user_joined_call", (payload) => {
-          console.log("Incoming call signal received.");
           addPeer(Peer, payload.signal, payload.callerID, currentStream);
         });
 
         socket.on("receiving_returned_signal", (payload) => {
-          console.log("Call accepted by partner.");
-          const peer = connectionRef.current;
-          if (peer) {
-            peer.signal(payload.signal);
-          }
+          connectionRef.current?.signal(payload.signal);
         });
       } catch (err) {
-        console.error("VoiceChat init error:", err);
+        console.error("VoiceChat error:", err);
       }
     };
 
     initVoice();
 
-    // Cleanup
     return () => {
       isMounted = false;
-
       socket.off("all_users_connected");
       socket.off("user_joined_call");
       socket.off("receiving_returned_signal");
 
-      if (connectionRef.current) {
-        connectionRef.current.destroy();
-      }
-
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((t) => t.stop());
-      }
+      connectionRef.current?.destroy();
+      localStreamRef.current?.getTracks().forEach((t) => t.stop());
     };
-    // roomCode/socket change se re-init hoga (normally stable hi rehte hain)
   }, [roomCode, socket]);
 
   const createPeer = (Peer, userToSignal, callerID, stream) => {
     const peer = new Peer({
       initiator: true,
       trickle: false,
-      stream: stream,
+      stream,
     });
 
     peer.on("signal", (signal) => {
@@ -219,15 +362,15 @@ const VoiceChat = ({ socket, roomCode, myRole }) => {
     connectionRef.current = peer;
   };
 
-  const addPeer = (Peer, incomingSignal, callerID, stream) => {
+  const addPeer = (Peer, signal, callerID, stream) => {
     const peer = new Peer({
       initiator: false,
       trickle: false,
-      stream: stream,
+      stream,
     });
 
-    peer.on("signal", (signal) => {
-      socket.emit("returning_signal", { signal, callerID });
+    peer.on("signal", (s) => {
+      socket.emit("returning_signal", { signal: s, callerID });
     });
 
     peer.on("stream", (remoteStream) => {
@@ -236,20 +379,30 @@ const VoiceChat = ({ socket, roomCode, myRole }) => {
       }
     });
 
-    peer.signal(incomingSignal);
+    peer.signal(signal);
     connectionRef.current = peer;
   };
 
+  // NEW — Mute / Unmute toggle
+  const toggleMute = () => {
+    if (!localStreamRef.current) return;
+
+    const audioTrack = localStreamRef.current.getAudioTracks()[0];
+    audioTrack.enabled = !audioTrack.enabled;
+
+    setIsMuted(!audioTrack.enabled);
+  };
+
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2">
-      {/* Remote audio plays here */}
+    <div className="fixed bottom-4 right-4 z-50 flex items-center gap-3">
+
+      {/* REMOTE AUDIO */}
       <audio playsInline autoPlay ref={userAudio} />
 
+      {/* STATUS BADGE */}
       <div
         className={`px-4 py-2 rounded-full border-2 font-bold shadow-lg flex items-center gap-2 transition-all ${
-          stream
-            ? "bg-gray-800 border-green-500 text-green-400"
-            : "bg-gray-800 border-red-500 text-red-500"
+          stream ? "bg-gray-800 border-green-500 text-green-400" : "bg-gray-800 border-red-500 text-red-500"
         }`}
       >
         {stream ? (
@@ -258,12 +411,22 @@ const VoiceChat = ({ socket, roomCode, myRole }) => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
             </span>
-            <span>Voice Active</span>
+            <span>{isMuted ? "Muted" : "Voice Active"}</span>
           </>
         ) : (
-          <span>🔇 Mic Off / Loading</span>
+          <span>🔇 Loading...</span>
         )}
       </div>
+
+      {/* 🔘 MUTE UNMUTE BUTTON */}
+      {stream && (
+        <button
+          onClick={toggleMute}
+          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-full text-white font-bold shadow-md transition-all active:scale-95 border border-gray-500"
+        >
+          {isMuted ? "🔊 Unmute" : "🔇 Mute"}
+        </button>
+      )}
     </div>
   );
 };
